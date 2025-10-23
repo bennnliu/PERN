@@ -5,15 +5,51 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import houseRoutes from "./routes/houseRoutes.js";
 import { sql } from "./config/db.js";
+import { aj } from "./lib/arcjet.js";
 
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+}));
 app.use(helmet());
 app.use(morgan("dev"));
+
+//apply arcjet rate limiting and bot protection middleware
+app.use(async (req, res, next) => { 
+    try {
+    const decision = await aj.protect(req, {
+        requested:1
+    });
+    if (decision.isDenied()) {
+       if(decision.reason.isRateLimit()){
+            return res.status(429).json({ error: "Too many requests - please try again later." });
+       }
+       else if (decision.reason.isBot()) {
+            return res.status(403).json({ error: "Access denied - bot traffic is not allowed." });
+       }
+       else {
+            return res.status(403).json({ error: "Access denied." });
+       }
+
+    }
+    if (decision.results.some((result) => result.reason.isBot() && result.reason.isSpoofed()) ) {
+        res.status(403).json({ error: "Access denied - suspected bot traffic." });
+        return;
+    }
+    next();
+    }
+    catch (error) {
+        console.log("Arcjet middleware error:", error);
+        next(error);
+    }
+})
+
 app.use("/api", houseRoutes);
 
 async function initDB() {
@@ -21,9 +57,9 @@ async function initDB() {
         await sql`
             CREATE TABLE IF NOT EXISTS houses (
                 id SERIAL PRIMARY KEY,
-                propety_title VARCHAR(255) NOT NULL,
+                property_title VARCHAR(255) NOT NULL,
                 image VARCHAR(255) NOT NULL,
-                montly_rent DECIMAL(10,2) NOT NULL,
+                monthly_rent DECIMAL(10,2) NOT NULL,
                 address VARCHAR(255) NOT NULL,
                 property_type VARCHAR(255) NOT NULL,
                 rooms INT NOT NULL,
