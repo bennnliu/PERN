@@ -4,6 +4,7 @@ import cors from "cors";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import houseRoutes from "./routes/houseRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 import { sql } from "./config/db.js";
 import { aj } from "./lib/arcjet.js";
 
@@ -50,7 +51,8 @@ app.use(async (req, res, next) => {
     }
 })
 
-app.use("/api", houseRoutes);
+app.use("/api/houses", houseRoutes);
+app.use("/api/auth", authRoutes);
 
 async function initDB() {
     try {
@@ -66,6 +68,17 @@ async function initDB() {
                 bathrooms INT NOT NULL,
                 square_feet INT NOT NULL,
                 description VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`;
+        
+        await sql`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                remember_token VARCHAR(255),
+                reset_token VARCHAR(255),
+                reset_token_expiry TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )`;
         console.log("Database connected successfully!");

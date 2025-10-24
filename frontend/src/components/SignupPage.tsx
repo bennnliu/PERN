@@ -4,17 +4,47 @@ import { Label } from "./ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Home } from "lucide-react";
 import { Features } from "./Features";
+import { authApi } from "../services/api";
+import { useState } from "react";
 
 interface SignupPageProps {
   onBack: () => void;
   onLogin: () => void;
+  onSignupSuccess: () => void;
 }
 
-export function SignupPage({ onBack, onLogin }: SignupPageProps) {
-  const handleSubmit = (e: React.FormEvent) => {
+export function SignupPage({ onBack, onLogin, onSignupSuccess }: SignupPageProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle signup logic here
-    alert("Sign up functionality would be implemented here");
+    setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await authApi.register(email, password, rememberMe);
+      onSignupSuccess();
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Signup failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,22 +64,21 @@ export function SignupPage({ onBack, onLogin }: SignupPageProps) {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="John Doe"
-                  required
-                />
-              </div>
+              {error && (
+                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded">
+                  {error}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
               <div className="space-y-2">
@@ -58,7 +87,10 @@ export function SignupPage({ onBack, onLogin }: SignupPageProps) {
                   id="password"
                   type="password"
                   placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
               <div className="space-y-2">
@@ -67,17 +99,26 @@ export function SignupPage({ onBack, onLogin }: SignupPageProps) {
                   id="confirm-password"
                   type="password"
                   placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
               <div className="flex items-start gap-2 text-sm">
-                <input type="checkbox" className="mt-1 rounded" required />
+                <input 
+                  type="checkbox" 
+                  className="mt-1 rounded" 
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={loading}
+                />
                 <span className="text-muted-foreground">
-                  I agree to the Terms of Service and Privacy Policy
+                  Remember me on this device
                 </span>
               </div>
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                Sign Up
+              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={loading}>
+                {loading ? "Creating account..." : "Sign Up"}
               </Button>
               <div className="text-center text-sm">
                 <span className="text-muted-foreground">Already have an account? </span>

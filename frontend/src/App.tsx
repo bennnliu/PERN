@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "./components/Header";
 import { Hero } from "./components/Hero";
 import { Features } from "./components/Features";
@@ -9,9 +9,11 @@ import { ListerPage } from "./components/ListerPage";
 import { RenterPage } from "./components/RenterPage";
 import { BrowsePage } from "./components/BrowsePage";
 import { AddPropertyPage } from "./components/AddPropertyPage";
+import { Dashboard } from "./components/Dashboard";
 import { Property } from "./components/PropertyCard";
+import { authApi } from "./services/api";
 
-type Page = "home" | "login" | "signup" | "lister" | "renter" | "browse" | "add-property";
+type Page = "home" | "login" | "signup" | "lister" | "renter" | "browse" | "add-property" | "dashboard";
 
 // Mock initial properties
 const initialProperties: Property[] = [
@@ -100,6 +102,14 @@ export default function App() {
   const [properties, setProperties] = useState<Property[]>(initialProperties);
   const [favorites, setFavorites] = useState<string[]>([]);
 
+  useEffect(() => {
+    // Check if user is logged in on mount
+    const user = authApi.getUser();
+    if (user && currentPage === "home") {
+      setCurrentPage("dashboard");
+    }
+  }, []);
+
   const navigateToHome = () => setCurrentPage("home");
   const navigateToLogin = () => setCurrentPage("login");
   const navigateToSignup = () => setCurrentPage("signup");
@@ -107,6 +117,19 @@ export default function App() {
   const navigateToRenter = () => setCurrentPage("renter");
   const navigateToBrowse = () => setCurrentPage("browse");
   const navigateToAddProperty = () => setCurrentPage("add-property");
+  const navigateToDashboard = () => setCurrentPage("dashboard");
+
+  const handleLoginSuccess = () => {
+    setCurrentPage("dashboard");
+  };
+
+  const handleSignupSuccess = () => {
+    setCurrentPage("dashboard");
+  };
+
+  const handleLogout = () => {
+    setCurrentPage("home");
+  };
 
   const handleAddProperty = (newProperty: Omit<Property, "id">) => {
     const property: Property = {
@@ -123,11 +146,15 @@ export default function App() {
   };
 
   if (currentPage === "login") {
-    return <LoginPage onBack={navigateToHome} onSignUp={navigateToSignup} />;
+    return <LoginPage onBack={navigateToHome} onSignUp={navigateToSignup} onLoginSuccess={handleLoginSuccess} />;
   }
 
   if (currentPage === "signup") {
-    return <SignupPage onBack={navigateToHome} onLogin={navigateToLogin} />;
+    return <SignupPage onBack={navigateToHome} onLogin={navigateToLogin} onSignupSuccess={handleSignupSuccess} />;
+  }
+
+  if (currentPage === "dashboard") {
+    return <Dashboard onLogout={handleLogout} onBrowse={navigateToBrowse} onAddProperty={navigateToAddProperty} />;
   }
 
   if (currentPage === "lister") {
@@ -161,6 +188,8 @@ export default function App() {
         onBrowse={navigateToBrowse}
         onAddProperty={navigateToAddProperty}
         onHome={navigateToHome}
+        onDashboard={navigateToDashboard}
+        onLogout={handleLogout}
       />
       <Hero onListerClick={navigateToLister} onRenterClick={navigateToRenter} />
       <Features />
