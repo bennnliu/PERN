@@ -43,7 +43,6 @@ export const getHouse = async (req, res) => {
     catch (error) {
         res.status(500).json({ error: "Failed to retrieve house" });
     }
-    res.send("Retrieve a single house by ID");
 }
 export const createHouse = async (req, res) => {
   try {
@@ -54,7 +53,7 @@ export const createHouse = async (req, res) => {
 
     const {
       property_title,
-      image,
+      images,
       monthly_rent,
       address,
       property_type,
@@ -62,12 +61,21 @@ export const createHouse = async (req, res) => {
       bathrooms,
       square_feet,
       description,
+      contact_name,
+      contact_email,
+      contact_phone,
     } = req.body;
+
+    // Get user ID from authenticated request
+    const user_id = req.user?.userId;
+    if (!user_id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
 
     // Detailed validation with specific error messages
     const requiredFields = {
       property_title,
-      image,
+      images,
       monthly_rent,
       address,
       property_type,
@@ -75,6 +83,9 @@ export const createHouse = async (req, res) => {
       bathrooms,
       square_feet,
       description,
+      contact_name,
+      contact_email,
+      contact_phone,
     };
 
     const missingFields = Object.entries(requiredFields)
@@ -99,29 +110,44 @@ export const createHouse = async (req, res) => {
       });
     }
 
+    // Validate images is an array
+    if (!Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({
+        error: "Images must be a non-empty array"
+      });
+    }
+
     console.log("✅ Validation passed, inserting into database...");
 
     const result = await sql`
       INSERT INTO houses (
+        user_id,
         property_title,
-        image,
+        images,
         monthly_rent,
         address,
         property_type,
         rooms,
         bathrooms,
         square_feet,
-        description
+        description,
+        contact_name,
+        contact_email,
+        contact_phone
       ) VALUES (
+        ${user_id},
         ${property_title},
-        ${image},
+        ${images},
         ${monthly_rent},
         ${address},
         ${property_type},
         ${rooms},
         ${bathrooms},
         ${square_feet},
-        ${description}
+        ${description},
+        ${contact_name},
+        ${contact_email},
+        ${contact_phone}
       )
       RETURNING *;
     `;
@@ -141,42 +167,107 @@ export const createHouse = async (req, res) => {
   }
 };
 
+export const getUserHouses = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const houses = await sql`
+            SELECT * FROM houses 
+            WHERE user_id = ${userId}
+            ORDER BY created_at DESC
+        `;
+        res.status(200).json(houses);
+    } catch (error) {
+        console.error("Error getting user houses:", error);
+        res.status(500).json({ error: "Failed to retrieve user houses" });
+    }
+};
+
 export const updateHouse = async (req, res) => {
     const { id } = req.params;
-    const { property_title, image, monthly_rent, address, property_type, rooms, bathrooms, square_feet, description } = req.body;
-    if (!property_title || !image || !monthly_rent || !address || !property_type || !rooms || !bathrooms || !square_feet || !description) {
-        return res.status(400).json({ error: "All fields are required" });
+    const userId = req.user?.userId;
+    
+    if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
     }
+    
     try {
-        const updatedHouse = await sql`
-        UPDATE houses 
-        SET property_title = ${property_title}, image = ${image}, monthly_rent = ${monthly_rent}, address = ${address}, property_type = ${property_type}, rooms = ${rooms}, bathrooms = ${bathrooms}, square_feet = ${square_feet}, description = ${description}
-        WHERE id = ${id}
-        RETURNING *;
+        // Check if house belongs to user
+        const existing = await sql`
+            SELECT * FROM houses WHERE id = ${id} AND user_id = ${userId}
         `;
-        if (updatedHouse.length === 0) {
-            return res.status(404).json({ error: "House not found" });
+        
+        if (existing.length === 0) {
+            return res.status(404).json({ error: "House not found or unauthorized" });
         }
+        
+        const { 
+            property_title, 
+            images, 
+            monthly_rent, 
+            address, 
+            property_type, 
+            rooms, 
+            bathrooms, 
+            square_feet, 
+            description,
+            contact_name,
+            contact_email,
+            contact_phone
+        } = req.body;
+        
+        // Update with all fields from request
+        const updatedHouse = await sql`
+            UPDATE houses 
+            SET 
+                property_title = ${property_title},
+                images = ${images},
+                monthly_rent = ${monthly_rent},
+                address = ${address},
+                property_type = ${property_type},
+                rooms = ${rooms},
+                bathrooms = ${bathrooms},
+                square_feet = ${square_feet},
+                description = ${description},
+                contact_name = ${contact_name},
+                contact_email = ${contact_email},
+                contact_phone = ${contact_phone}
+            WHERE id = ${id} AND user_id = ${userId}
+            RETURNING *
+        `;
+        
+        if (updatedHouse.length === 0) {
+            return res.status(404).json({ error: "House not found or unauthorized" });
+        }
+        
         res.status(200).json(updatedHouse[0]);
-    }
-    catch (error) {
+    } catch (error) {
+        console.error("Error updating house:", error);
         res.status(500).json({ error: "Failed to update house listing" });
     }
 }
 export const deleteHouse = async (req, res) => {
     const { id } = req.params;
-    try {
-        const deletedHouse = await sql`
-        DELETE FROM houses WHERE id = ${id} RETURNING *;
-        `;
-        if (deletedHouse.length === 0) {
-            return res.status(404).json({ error: "House not found" });
-        }
-        res.status(200).json({ message: "House deleted successfully" });
+    const userId = req.user?.userId;
+    
+    if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
     }
-    catch (error) {
+    
+    try {
+        // Only allow deleting own houses
+        const deletedHouse = await sql`
+            DELETE FROM houses 
+            WHERE id = ${id} AND user_id = ${userId}
+            RETURNING *
+        `;
+        
+        if (deletedHouse.length === 0) {
+            return res.status(404).json({ error: "House not found or unauthorized" });
+        }
+        
+        res.status(200).json({ message: "House deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting house:", error);
         res.status(500).json({ error: "Failed to delete house listing" });
     }
-    // Logic to delete a house by ID from the database
-    res.send("Delete a house by ID");
 }

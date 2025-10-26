@@ -4,19 +4,18 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { houseApi } from "../services/api";
+import { houseApi, authApi } from "../services/api";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { ArrowLeft, Home, Upload } from "lucide-react";
+import imageCompression from "browser-image-compression";
 import { Property } from "./PropertyCard";
 import { Features } from "./Features";
+import { useNavigate, Link } from "react-router-dom";
 
-interface AddPropertyPageProps {
-  onBack: () => void;
-  onAddProperty: (property: Omit<Property, "id">) => void;
-}
-
-export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps) {
+export function AddPropertyPage() {
+  const navigate = useNavigate();
+  const user = authApi.getUser();
   const [formData, setFormData] = useState({
     title: "",
     location: "",
@@ -26,64 +25,127 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
     squareFeet: "",
     type: "" as Property["type"] | "",
     description: "",
-    image: "",
+    images: [] as string[],
   });
+  const [imageInput, setImageInput] = useState("");
 
   const [submitted, setSubmitted] = useState(false);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+  const handleAddImage = () => {
+    if (imageInput.trim() && formData.images.length < 5) {
+      setFormData({ ...formData, images: [...formData.images, imageInput.trim()] });
+      setImageInput("");
+      toast.success('Image added');
+    } else if (formData.images.length >= 5) {
+      toast.error('Maximum 5 images allowed');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const remainingSlots = 5 - formData.images.length;
+    if (remainingSlots === 0) {
+      toast.error('Maximum 5 images allowed');
+      return;
+    }
+
+    const filesToProcess = Array.from(files).slice(0, remainingSlots);
+    
+    // Compression options
+    const options = {
+      maxSizeMB: 0.5,          // Compress to max 500KB
+      maxWidthOrHeight: 1920,  // Max dimension
+      useWebWorker: true,       // Use web worker for better performance
+      fileType: 'image/jpeg'    // Convert to JPEG for better compression
+    };
+
+    for (const file of filesToProcess) {
+      if (!file.type.startsWith('image/')) {
+        toast.error(`${file.name} is not an image file`);
+        continue;
+      }
+
+      try {
+        // Show compression progress
+        toast.loading(`Compressing ${file.name}...`);
+        
+        // Compress the image
+        const compressedFile = await imageCompression(file, options);
+        
+        const originalSizeKB = (file.size / 1024).toFixed(0);
+        const compressedSizeKB = (compressedFile.size / 1024).toFixed(0);
+        
+        // Convert compressed file to base64
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result as string;
+          setFormData(prev => ({
+            ...prev,
+            images: [...prev.images, base64String]
+          }));
+          toast.dismiss();
+          toast.success(`${file.name} added (${originalSizeKB}KB → ${compressedSizeKB}KB)`);
+        };
+        reader.onerror = () => {
+          toast.dismiss();
+          toast.error(`Failed to read ${file.name}`);
+        };
+        reader.readAsDataURL(compressedFile);
+      } catch (error) {
+        toast.dismiss();
+        console.error('Compression error:', error);
+        toast.error(`Failed to compress ${file.name}`);
+      }
+    }
+
+    // Reset input
+    e.target.value = '';
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setFormData({
+      ...formData,
+      images: formData.images.filter((_, i) => i !== index)
+    });
+    toast.success('Image removed');
+  };
+
+    const handleSubmit = async (e: any) => {
     e.preventDefault();
     
     if (!formData.type) return;
+
+    if (formData.images.length === 0) {
+      toast.error('Please add at least one image');
+      return;
+    }
 
     try {
       const houseData = {
         property_title: formData.title,
         address: formData.location,
-        monthly_rent: Number(formData.price),
-        rooms: Number(formData.bedrooms),
-        bathrooms: Number(formData.bathrooms),
-        square_feet: Number(formData.squareFeet),
+        monthly_rent: parseFloat(formData.price),
+        rooms: parseInt(formData.bedrooms, 10),
+        bathrooms: parseInt(formData.bathrooms, 10),
+        square_feet: parseInt(formData.squareFeet, 10),
         property_type: formData.type,
         description: formData.description,
-        image: formData.image || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBob3VzZSUyMGV4dGVyaW9yfGVufDF8fHx8MTc1OTk4MDE2Mnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
+        images: formData.images,
+        contact_name: user?.email || '',
+        contact_email: user?.email || '',
+        contact_phone: user?.phone_number || '',
       };
 
-      const newHouse = await houseApi.create(houseData);
-      
-      // Convert the API response to the Property type for the UI
-      const newProperty: Omit<Property, "id"> = {
-        title: newHouse.property_title,
-        location: newHouse.address,
-        price: newHouse.monthly_rent,
-        bedrooms: newHouse.rooms,
-        bathrooms: newHouse.bathrooms,
-        squareFeet: newHouse.square_feet,
-        type: formData.type,
-        description: newHouse.description,
-        image: newHouse.image,
-        available: true,
-      };
-
-      onAddProperty(newProperty);
+      await houseApi.create(houseData);
       setSubmitted(true);
       toast.success("Property listed successfully!");
-
-      // Reset form after delay
+      
+      // Navigate to dashboard after short delay
       setTimeout(() => {
-        setFormData({
-          title: "",
-          location: "",
-          price: "",
-          bedrooms: "",
-          bathrooms: "",
-          squareFeet: "",
-          type: "",
-          description: "",
-          image: "",
-        });
-        setSubmitted(false);
-      }, 2000);
+        navigate('/dashboard');
+      }, 1500);
       
     } catch (error) {
       console.error("Error creating property:", error);
@@ -99,7 +161,8 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
     formData.bathrooms &&
     formData.squareFeet &&
     formData.type &&
-    formData.description;
+    formData.description &&
+    formData.images.length > 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -108,16 +171,16 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={onBack}>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <button 
-                onClick={onBack}
+              <Link 
+                to="/"
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               >
                 <Home className="w-6 h-6 text-primary" />
                 <span className="text-2xl text-primary">Brook Rent</span>
-              </button>
+              </Link>
             </div>
             <div>
               <h1>List Your Property</h1>
@@ -138,7 +201,7 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
             <h2 className="mb-2">Property Listed Successfully!</h2>
             <p className="text-muted-foreground mb-6">Your property has been added to the marketplace.</p>
             <div className="flex gap-4 justify-center">
-              <Button onClick={onBack}>Back to Dashboard</Button>
+              <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
               <Button variant="outline" onClick={() => setSubmitted(false)}>
                 List Another Property
               </Button>
@@ -203,6 +266,8 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
                   <Input
                     id="price"
                     type="number"
+                    step="0.01"
+                    min="0"
                     placeholder="2500"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
@@ -217,6 +282,7 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
                     <Input
                       id="bedrooms"
                       type="number"
+                      step="1"
                       placeholder="2"
                       min="0"
                       value={formData.bedrooms}
@@ -242,6 +308,7 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
                     <Input
                       id="squareFeet"
                       type="number"
+                      step="1"
                       placeholder="1200"
                       min="0"
                       value={formData.squareFeet}
@@ -264,25 +331,70 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
                   />
                 </div>
 
-                {/* Image URL */}
+                {/* Image URLs */}
                 <div className="space-y-2">
-                  <Label htmlFor="image">Image URL (Optional)</Label>
+                  <Label htmlFor="image">Property Images *</Label>
+                  <p className="text-sm text-muted-foreground">Add up to 5 images (URL or upload from device)</p>
+                  
+                  {/* URL Input */}
                   <div className="flex gap-2">
                     <Input
                       id="image"
                       type="url"
                       placeholder="https://example.com/image.jpg"
-                      value={formData.image}
-                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                      value={imageInput}
+                      onChange={(e) => setImageInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddImage())}
                     />
-                    <Button type="button" variant="outline">
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload
+                    <Button 
+                      type="button" 
+                      onClick={handleAddImage}
+                      disabled={!imageInput.trim() || formData.images.length >= 5}
+                      variant="outline"
+                    >
+                      <Upload className="w-4 h-4 mr-2" /> Add URL
                     </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Add a URL to your property image or upload a photo
-                  </p>
+
+                  {/* File Upload */}
+                  <div className="flex gap-2">
+                    <Input
+                      id="fileUpload"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFileUpload}
+                      disabled={formData.images.length >= 5}
+                      className="hidden"
+                    />
+                    <Button 
+                      type="button" 
+                      onClick={() => document.getElementById('fileUpload')?.click()}
+                      disabled={formData.images.length >= 5}
+                      className="flex-1"
+                    >
+                      <Upload className="w-4 h-4 mr-2" /> Upload from Device
+                    </Button>
+                  </div>
+
+                  {formData.images.length > 0 && (
+                    <div className="space-y-2 mt-4">
+                      {formData.images.map((img, index) => (
+                        <div key={index} className="flex items-center gap-2 p-2 border rounded">
+                          <img src={img} alt={`Property ${index + 1}`} className="w-16 h-16 object-cover rounded" />
+                          <span className="flex-1 text-sm truncate">{img.substring(0, 50)}...</span>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRemoveImage(index)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-border">
@@ -290,7 +402,7 @@ export function AddPropertyPage({ onBack, onAddProperty }: AddPropertyPageProps)
                     <Button type="submit" disabled={!isFormValid} className="flex-1">
                       List Property
                     </Button>
-                    <Button type="button" variant="outline" onClick={onBack}>
+                    <Button type="button" variant="outline" onClick={() => navigate('/dashboard')}>
                       Cancel
                     </Button>
                   </div>

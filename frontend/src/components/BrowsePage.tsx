@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { PropertyCard } from "./PropertyCard";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { houseApi, House } from "../services/api";
+import { houseApi, House, favoritesApi } from "../services/api";
 import { toast } from "sonner";
 import { Label } from "./ui/label";
 import { Features } from "./Features";
@@ -11,24 +11,38 @@ import { Slider } from "./ui/slider";
 import { Home, ArrowLeft, Search, SlidersHorizontal, Heart } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
-
-interface BrowsePageProps {
-  onBack: () => void;
-  favorites: string[];
-  onFavoriteToggle: (id: string) => void;
-}
-
+import { useNavigate, Link } from "react-router-dom";
 import { Property } from "./PropertyCard";
 
-export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePageProps) {
-  const [properties, setProperties] = useState<House[]>([]);
+export function BrowsePage() {
+  const navigate = useNavigate();
+  const [properties, setProperties] = useState([] as House[]);
+  const [favorites, setFavorites] = useState([] as number[]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+
+  const handleFavoriteToggle = async (id: string) => {
+    const houseId = parseInt(id);
+    try {
+      if (favorites.includes(houseId)) {
+        await favoritesApi.remove(houseId);
+        setFavorites(favorites.filter((fav: number) => fav !== houseId));
+        toast.success('Removed from favorites');
+      } else {
+        await favoritesApi.add(houseId);
+        setFavorites([...favorites, houseId]);
+        toast.success('Added to favorites');
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      toast.error('Failed to update favorites');
+    }
+  };
 
   useEffect(() => {
     fetchProperties();
+    fetchFavorites();
   }, []);
 
   const fetchProperties = async () => {
@@ -40,6 +54,18 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
       toast.error('Failed to load properties. Please try again later.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFavorites = async () => {
+    try {
+      const favoriteHouses = await favoritesApi.getAll();
+      // Extract house IDs from the favorite houses
+      const favoriteIds = favoriteHouses.map((house: House) => house.id);
+      setFavorites(favoriteIds);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+      // User might not be logged in, that's okay
     }
   };
   const [bedroomFilter, setBedroomFilter] = useState("all");
@@ -58,7 +84,8 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
       location: house.address,
       type: propertyType,
       price: house.monthly_rent,
-      image: house.image,
+      image: house.images && house.images.length > 0 ? house.images[0] : 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800',
+      images: house.images, // Pass all images for the slider
       bedrooms: house.rooms,
       bathrooms: house.bathrooms,
       squareFeet: house.square_feet,
@@ -68,16 +95,15 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
   };
 
   // Filter properties
-  const filteredProperties = properties.filter((property) => {
+  const filteredProperties = properties.filter((property: { property_title: string; address: string; property_type: any; rooms: { toString: () => any; }; monthly_rent: number; id: any; }) => {
     const matchesSearch = property.property_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          property.address.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLocation = locationFilter === "all" || property.address.includes(locationFilter);
     const matchesType = typeFilter === "all" || property.property_type === typeFilter;
     const matchesBedrooms = bedroomFilter === "all" || property.rooms.toString() === bedroomFilter;
     const matchesPrice = property.monthly_rent >= priceRange[0] && property.monthly_rent <= priceRange[1];
-    const matchesFavorites = !showFavoritesOnly || favorites.includes(property.id.toString());
+    const matchesFavorites = !showFavoritesOnly || favorites.includes(property.id);
 
-    return matchesSearch && matchesLocation && matchesType && matchesBedrooms && matchesPrice && matchesFavorites;
+    return matchesSearch && matchesType && matchesBedrooms && matchesPrice && matchesFavorites;
   });
 
   if (loading) {
@@ -97,16 +123,16 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
       <div className="bg-white border-b border-border sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4 mb-4">
-            <Button variant="ghost" size="icon" onClick={onBack}>
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <button 
-              onClick={onBack}
+            <Link 
+              to="/"
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               <Home className="w-6 h-6 text-primary" />
               <span className="text-2xl text-primary">Brook Rent</span>
-            </button>
+            </Link>
           </div>
 
           {/* Search Bar */}
@@ -116,7 +142,7 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
               <Input
                 placeholder="Search by location or property name..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e: { target: { value: any; }; }) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -148,24 +174,6 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
                   <CardTitle>Filters</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Location Filter */}
-                  <div className="space-y-2">
-                    <Label>Location</Label>
-                    <Select value={locationFilter} onValueChange={setLocationFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Locations" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Locations</SelectItem>
-                        <SelectItem value="Downtown">Downtown</SelectItem>
-                        <SelectItem value="Brooklyn">Brooklyn</SelectItem>
-                        <SelectItem value="Queens">Queens</SelectItem>
-                        <SelectItem value="Manhattan">Manhattan</SelectItem>
-                        <SelectItem value="Suburbs">Suburbs</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   {/* Property Type Filter */}
                   <div className="space-y-2">
                     <Label>Property Type</Label>
@@ -217,7 +225,6 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
                     variant="outline"
                     className="w-full"
                     onClick={() => {
-                      setLocationFilter("all");
                       setTypeFilter("all");
                       setBedroomFilter("all");
                       setPriceRange([0, 5000]);
@@ -237,24 +244,6 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
                 <CardTitle>Filters</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Location Filter */}
-                <div className="space-y-2">
-                  <Label>Location</Label>
-                  <Select value={locationFilter} onValueChange={setLocationFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Locations" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Locations</SelectItem>
-                      <SelectItem value="Downtown">Downtown</SelectItem>
-                      <SelectItem value="Brooklyn">Brooklyn</SelectItem>
-                      <SelectItem value="Queens">Queens</SelectItem>
-                      <SelectItem value="Manhattan">Manhattan</SelectItem>
-                      <SelectItem value="Suburbs">Suburbs</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {/* Property Type Filter */}
                 <div className="space-y-2">
                   <Label>Property Type</Label>
@@ -306,7 +295,6 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    setLocationFilter("all");
                     setTypeFilter("all");
                     setBedroomFilter("all");
                     setPriceRange([0, 5000]);
@@ -333,7 +321,6 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
                   variant="outline"
                   onClick={() => {
                     setSearchTerm("");
-                    setLocationFilter("all");
                     setTypeFilter("all");
                     setBedroomFilter("all");
                     setPriceRange([0, 5000]);
@@ -345,12 +332,12 @@ export function BrowsePage({ onBack, favorites, onFavoriteToggle }: BrowsePagePr
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredProperties.map((property) => (
+                {filteredProperties.map((property: House) => (
                   <PropertyCard
                     key={property.id}
                     property={convertToPropertyCard(property)}
-                    onFavoriteToggle={onFavoriteToggle}
-                    isFavorited={favorites.includes(property.id.toString())}
+                    onFavoriteToggle={handleFavoriteToggle}
+                    isFavorited={favorites.includes(property.id)}
                   />
                 ))}
               </div>

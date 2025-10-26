@@ -6,17 +6,15 @@ import { Home } from "lucide-react";
 import { Features } from "./Features";
 import { authApi } from "../services/api";
 import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 
-interface SignupPageProps {
-  onBack: () => void;
-  onLogin: () => void;
-  onSignupSuccess: () => void;
-}
-
-export function SignupPage({ onBack, onLogin, onSignupSuccess }: SignupPageProps) {
+export function SignupPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [userType, setUserType] = useState<'lister' | 'renter'>('renter');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,8 +36,8 @@ export function SignupPage({ onBack, onLogin, onSignupSuccess }: SignupPageProps
     setLoading(true);
 
     try {
-      await authApi.register(email, password, rememberMe);
-      onSignupSuccess();
+      await authApi.register(email, password, phoneNumber, userType, rememberMe);
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || "Signup failed. Please try again.");
     } finally {
@@ -52,13 +50,13 @@ export function SignupPage({ onBack, onLogin, onSignupSuccess }: SignupPageProps
       <div className="min-h-screen flex items-center justify-center bg-secondary/30 py-12 px-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <button 
-              onClick={onBack}
+            <Link 
+              to="/"
               className="flex items-center justify-center gap-2 mb-4 hover:opacity-80 transition-opacity mx-auto"
             >
               <Home className="w-8 h-8 text-primary" />
               <span className="text-3xl text-primary">Brook Rent</span>
-            </button>
+            </Link>
             <CardTitle>Create an Account</CardTitle>
             <CardDescription>Join Brook Rent to get started</CardDescription>
           </CardHeader>
@@ -105,6 +103,46 @@ export function SignupPage({ onBack, onLogin, onSignupSuccess }: SignupPageProps
                   disabled={loading}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number (Optional)</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="(123) 456-7890"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="userType">I am a...</Label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="userType"
+                      value="renter"
+                      checked={userType === 'renter'}
+                      onChange={(e) => setUserType('renter')}
+                      disabled={loading}
+                      className="cursor-pointer"
+                    />
+                    <span>Renter (Looking for a place)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="userType"
+                      value="lister"
+                      checked={userType === 'lister'}
+                      onChange={(e) => setUserType('lister')}
+                      disabled={loading}
+                      className="cursor-pointer"
+                    />
+                    <span>Lister (Have a place to rent)</span>
+                  </label>
+                </div>
+              </div>
               <div className="flex items-start gap-2 text-sm">
                 <input 
                   type="checkbox" 
@@ -122,19 +160,15 @@ export function SignupPage({ onBack, onLogin, onSignupSuccess }: SignupPageProps
               </Button>
               <div className="text-center text-sm">
                 <span className="text-muted-foreground">Already have an account? </span>
-                <button
-                  type="button"
-                  onClick={onLogin}
-                  className="text-primary hover:underline"
-                >
+                <Link to="/login" className="text-primary hover:underline">
                   Log in
-                </button>
+                </Link>
               </div>
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={onBack}
+                onClick={() => navigate('/')}
               >
                 Back to Home
               </Button>

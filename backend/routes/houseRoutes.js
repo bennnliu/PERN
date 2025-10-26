@@ -1,16 +1,17 @@
 import express from "express";
-import { getHouses } from "../controllers/houseController.js";
-import { createHouse} from "../controllers/houseController.js";
-import { getHouse } from "../controllers/houseController.js";
-import { updateHouse } from "../controllers/houseController.js";
-import { deleteHouse } from "../controllers/houseController.js";1
+import { getHouses, getUserHouses, createHouse, getHouse, updateHouse, deleteHouse } from "../controllers/houseController.js";
+import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
+// Public routes
 router.get("/", getHouses);
 router.get("/:id", getHouse);
-router.post("/",createHouse)
-router.put("/:id", updateHouse);
-router.delete("/:id", deleteHouse);
+
+// Protected routes (require authentication)
+router.get("/user/my-listings", authenticateToken, getUserHouses);
+router.post("/", authenticateToken, createHouse);
+router.put("/:id", authenticateToken, updateHouse);
+router.delete("/:id", authenticateToken, deleteHouse);
 
 export default router;

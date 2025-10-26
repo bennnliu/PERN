@@ -1,12 +1,9 @@
 import { Button } from "./ui/button";
 import { Building2, UserCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-interface HeroProps {
-  onListerClick: () => void;
-  onRenterClick: () => void;
-}
-
-export function Hero({ onListerClick, onRenterClick }: HeroProps) {
+export function Hero() {
+  const navigate = useNavigate();
   return (
     <section className="relative min-h-screen flex items-center justify-center">
       {/* Background Image with Overlay */}
@@ -33,7 +30,7 @@ export function Hero({ onListerClick, onRenterClick }: HeroProps) {
           <div className="flex-1 w-full sm:w-auto">
             <Button 
               size="lg"
-              onClick={onListerClick}
+              onClick={() => navigate('/signup')}
               className="w-full h-full bg-primary hover:bg-primary/90 text-white py-6 px-6 rounded-xl shadow-xl hover:shadow-2xl transition-all flex flex-col items-center justify-center gap-3"
             >
               <Building2 className="h-16 w-16" />
@@ -48,7 +45,7 @@ export function Hero({ onListerClick, onRenterClick }: HeroProps) {
             <Button 
               size="lg"
               variant="secondary"
-              onClick={onRenterClick}
+              onClick={() => navigate('/browse')}
               className="w-full h-full bg-white hover:bg-white/90 text-primary py-6 px-6 rounded-xl shadow-xl hover:shadow-2xl transition-all flex flex-col items-center justify-center gap-3"
             >
               <UserCircle className="h-16 w-16" />

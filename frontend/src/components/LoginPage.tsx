@@ -6,19 +6,15 @@ import { Home } from "lucide-react";
 import { Features } from "./Features";
 import { authApi } from "../services/api";
 import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 
-interface LoginPageProps {
-  onBack: () => void;
-  onSignUp: () => void;
-  onLoginSuccess: () => void;
-}
-
-export function LoginPage({ onBack, onSignUp, onLoginSuccess }: LoginPageProps) {
+export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +23,7 @@ export function LoginPage({ onBack, onSignUp, onLoginSuccess }: LoginPageProps) 
 
     try {
       await authApi.login(email, password, rememberMe);
-      onLoginSuccess();
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || "Login failed. Please try again.");
     } finally {
@@ -40,13 +36,13 @@ export function LoginPage({ onBack, onSignUp, onLoginSuccess }: LoginPageProps) 
       <div className="min-h-screen flex items-center justify-center bg-secondary/30 py-12 px-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <button 
-              onClick={onBack}
+            <Link 
+              to="/"
               className="flex items-center justify-center gap-2 mb-4 hover:opacity-80 transition-opacity mx-auto"
             >
               <Home className="w-8 h-8 text-primary" />
               <span className="text-3xl text-primary">Brook Rent</span>
-            </button>
+            </Link>
             <CardTitle>Welcome Back</CardTitle>
             <CardDescription>Log in to your account to continue</CardDescription>
           </CardHeader>
@@ -101,19 +97,15 @@ export function LoginPage({ onBack, onSignUp, onLoginSuccess }: LoginPageProps) 
               </Button>
               <div className="text-center text-sm">
                 <span className="text-muted-foreground">Don't have an account? </span>
-                <button
-                  type="button"
-                  onClick={onSignUp}
-                  className="text-primary hover:underline"
-                >
+                <Link to="/signup" className="text-primary hover:underline">
                   Sign up
-                </button>
+                </Link>
               </div>
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={onBack}
+                onClick={() => navigate('/')}
               >
                 Back to Home
               </Button>

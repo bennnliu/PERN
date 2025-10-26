@@ -15,10 +15,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export interface User {
+  id: number;
+  email: string;
+  phone_number?: string;
+  user_type: 'lister' | 'renter';
+}
+
 export interface House {
   id: number;
+  user_id: number;
   property_title: string;
-  image: string;
+  images: string[];
   monthly_rent: number;
   address: string;
   property_type: string;
@@ -26,6 +34,9 @@ export interface House {
   bathrooms: number;
   square_feet: number;
   description: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
   created_at: string;
 }
 
@@ -40,12 +51,17 @@ export const houseApi = {
     return response.data;
   },
 
-  create: async (house: Omit<House, 'id' | 'created_at'>): Promise<House> => {
+  getUserListings: async (): Promise<House[]> => {
+    const response = await api.get('/houses/user/my-listings');
+    return response.data;
+  },
+
+  create: async (house: Omit<House, 'id' | 'user_id' | 'created_at'>): Promise<House> => {
     const response = await api.post('/houses', house);
     return response.data;
   },
 
-  update: async (id: number, house: Partial<House>): Promise<House> => {
+  update: async (id: number, house: Partial<Omit<House, 'id' | 'user_id' | 'created_at'>>): Promise<House> => {
     const response = await api.put(`/houses/${id}`, house);
     return response.data;
   },
@@ -55,10 +71,30 @@ export const houseApi = {
   },
 };
 
+export const favoritesApi = {
+  getAll: async (): Promise<House[]> => {
+    const response = await api.get('/favorites');
+    return response.data;
+  },
+
+  add: async (houseId: number): Promise<void> => {
+    await api.post('/favorites', { houseId });
+  },
+
+  remove: async (houseId: number): Promise<void> => {
+    await api.delete(`/favorites/${houseId}`);
+  },
+
+  check: async (houseId: number): Promise<boolean> => {
+    const response = await api.get(`/favorites/check/${houseId}`);
+    return response.data.isFavorite;
+  },
+};
+
 export const authApi = {
-  register: async (email: string, password: string, rememberMe = false) => {
+  register: async (email: string, password: string, phone_number: string, user_type: 'lister' | 'renter', rememberMe = false) => {
     // Register then auto-login to get token
-    await api.post('/auth/register', { email, password });
+    await api.post('/auth/register', { email, password, phone_number, user_type });
     return authApi.login(email, password, rememberMe);
   },
 
@@ -99,7 +135,7 @@ export const authApi = {
     return response.data;
   },
 
-  getUser: () => {
+  getUser: (): User | null => {
     try {
       const raw = localStorage.getItem('user');
       if (!raw) return null;

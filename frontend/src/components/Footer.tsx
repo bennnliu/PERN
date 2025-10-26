@@ -16,30 +16,8 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Quick Links */}
-          <div>
-            <h4 className="mb-4 text-white">Quick Links</h4>
-            <ul className="space-y-2">
-              <li><a href="#" className="text-white/70 hover:text-primary transition-colors">About Us</a></li>
-              <li><a href="#" className="text-white/70 hover:text-primary transition-colors">How It Works</a></li>
-              <li><a href="#" className="text-white/70 hover:text-primary transition-colors">Pricing</a></li>
-              <li><a href="#" className="text-white/70 hover:text-primary transition-colors">FAQs</a></li>
-            </ul>
-          </div>
-
-          {/* For Listers */}
-          <div>
-            <h4 className="mb-4 text-white">For Listers</h4>
-            <ul className="space-y-2">
-              <li><a href="#" className="text-white/70 hover:text-primary transition-colors">List Your Property</a></li>
-              <li><a href="#" className="text-white/70 hover:text-primary transition-colors">Pricing Plans</a></li>
-              <li><a href="#" className="text-white/70 hover:text-primary transition-colors">Success Stories</a></li>
-              <li><a href="#" className="text-white/70 hover:text-primary transition-colors">Resources</a></li>
-            </ul>
-          </div>
-
           {/* Contact */}
-          <div>
+          <div className="md:col-span-3">
             <h4 className="mb-4 text-white">Contact Us</h4>
             <ul className="space-y-3">
               <li className="flex items-center gap-2 text-white/70">
@@ -51,17 +29,6 @@ export function Footer() {
                 <span>1-800-BROOK-RENT</span>
               </li>
             </ul>
-            <div className="flex gap-4 mt-6">
-              <a href="#" className="text-white/70 hover:text-primary transition-colors">
-                <Facebook className="w-5 h-5" />
-              </a>
-              <a href="#" className="text-white/70 hover:text-primary transition-colors">
-                <Twitter className="w-5 h-5" />
-              </a>
-              <a href="#" className="text-white/70 hover:text-primary transition-colors">
-                <Instagram className="w-5 h-5" />
-              </a>
-            </div>
           </div>
         </div>
 
